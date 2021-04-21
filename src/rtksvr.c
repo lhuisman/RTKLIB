@@ -98,6 +98,13 @@ static void writesol(rtksvr_t *svr, int index)
         n=outsolexs(buff,&svr->rtk.sol,svr->rtk.ssat,svr->solopt+i);
         strwrite(svr->stream+i+3,buff,n);
         
+        /* output graphite solution */
+        n=outsolgrpht(buff,svr,i);
+        strwrite(svr->stream+i+3,buff,n);
+
+
+        
+
         /* save output buffer */
         saveoutbuf(svr,buff,n,i);
     }

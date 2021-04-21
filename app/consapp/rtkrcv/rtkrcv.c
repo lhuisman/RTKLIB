@@ -118,6 +118,7 @@ static int moniport     =0;             /* monitor port */
 static int keepalive    =0;             /* keep alive flag */
 static int fswapmargin  =30;            /* file swap margin (s) */
 static char sta_name[256]="";           /* station name */
+static char rovstr[256]="";           /* rover stream */
 
 static prcopt_t prcopt;                 /* processing options */
 static solopt_t solopt[2]={{0}};        /* solution options */
@@ -178,11 +179,11 @@ static const char *pathopts[]={         /* path options help */
 #define TIMOPT  "0:gpst,1:utc,2:jst,3:tow"
 #define CONOPT  "0:dms,1:deg,2:xyz,3:enu,4:pyl"
 #define FLGOPT  "0:off,1:std+2:age/ratio/ns"
-#define ISTOPT  "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,7:ntripcli,8:ftp,9:http"
+#define ISTOPT  "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,6:ntripcli,7:ftp,8:http"
 #define OSTOPT  "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,6:ntripsvr,11:ntripc_c"
 #define FMTOPT  "0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:gw10,9:javad,10:nvs,11:binex,12:rt17,13:sbf,14:cmr,15:tersus,18:sp3"
 #define NMEOPT  "0:off,1:latlon,2:single"
-#define SOLOPT  "0:llh,1:xyz,2:enu,3:nmea,4:stat"
+#define SOLOPT  "0:llh,1:xyz,2:enu,3:nmea,4:stat,6:graphite"
 #define MSGOPT  "0:all,1:rover,2:base,3:corr"
 
 static opt_t rcvopts[]={
@@ -1624,6 +1625,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i],"-r")&&i+1<argc) outstat=atoi(argv[++i]);
         else if (!strcmp(argv[i],"-t")&&i+1<argc) trace=atoi(argv[++i]);
         else if (!strcmp(argv[i],"-sta")&&i+1<argc) strcpy(sta_name,argv[++i]);
+        else if (!strcmp(argv[i],"-rovstr")&&i+1<argc) strcpy(rovstr,argv[++i]);
         else printusage();
     }
     if (trace>0) {
@@ -1642,7 +1644,7 @@ int main(int argc, char **argv)
         fprintf(stderr,"no options file: %s. defaults used\n",file);
     }
     getsysopts(&prcopt,solopt,&filopt);
-    
+    if (rovstr[0] != '\0') strcpy(strpath[0],rovstr);
     /* read navigation data */
     if (!readnav(NAVIFILE,&svr.nav)) {
         fprintf(stderr,"no navigation data: %s\n",NAVIFILE);

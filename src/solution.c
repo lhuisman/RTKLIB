@@ -1380,7 +1380,7 @@ extern int outnmea_gsv(uint8_t *buff, const sol_t *sol, const ssat_t *ssat)
                     if      (sys==SYS_SBS) prn-=87;  /* SBS: 33-64 */
                     else if (sys==SYS_GLO) prn+=64;  /* GLO: 65-99 */
                     else if (sys==SYS_QZS) prn-=192; /* QZS: 01-10 */
-                    az =ssat[sats[n]-1].azel[0]*R2D; if (az<0.0) az+=360.0;
+                    az =ssat[sats[n]-1].azel[0]*R2D;
                     el =ssat[sats[n]-1].azel[1]*R2D;
                     snr=ssat[sats[n]-1].snr[0]*SNR_UNIT;
                     p+=sprintf(p,",%02d,%02.0f,%03.0f,%02.0f",prn,el,az,snr);
@@ -1392,6 +1392,54 @@ extern int outnmea_gsv(uint8_t *buff, const sol_t *sol, const ssat_t *ssat)
             p+=sprintf(p,"*%02X\r\n",sum);
         }
     }
+    return p-(char *)buff;
+}
+/* output solution as graphite metric ---------------------------------*/
+static int outgraphite(uint8_t *buff,const sol_t *sol,const ssat_t *ssat,
+                   const solopt_t *opt, const char* station)
+{
+    gtime_t time;
+    double azel[MAXSAT*2],dop[4], pos[3];
+    int sat, sys, nsat, prn, sats[MAXSAT];
+    char *p=(char *)buff;
+    char satellite[5];
+    
+    trace(3,"outnmea_gga:\n");
+    
+    if (sol->stat<=SOLQ_NONE) {
+        return p-(char *)buff;
+    }
+    time=sol->time;
+    ecef2pos(sol->rr,pos);
+    p+=sprintf(p,"pvt.%s.latitude %14.9f %ld\r\n",station,pos[0]*R2D,time.time);
+    p+=sprintf(p,"pvt.%s.longitude %14.9f %ld\r\n",station,pos[1]*R2D,time.time);
+    p+=sprintf(p,"pvt.%s.height %13.4f %ld\r\n",station,pos[2],time.time);
+    p+=sprintf(p,"pvt.%s.status %d %ld\r\n",station,sol->stat,time.time);
+    for (sat=nsat=0;sat<MAXSAT;sat++) {
+        if (!ssat[sat].vs) continue;
+        sys=satsys(sat+1,&prn);
+        if      (sys==SYS_GPS) sprintf(satellite,"G%02d",prn);  
+        else if (sys==SYS_GAL) sprintf(satellite,"E%02d",prn);
+        else if (sys==SYS_CMP) sprintf(satellite,"C%02d",prn);
+        else if (sys==SYS_SBS) sprintf(satellite,"S%03d",prn);
+        else if (sys==SYS_GLO) sprintf(satellite,"R%02d",prn);
+        else if (sys==SYS_QZS) sprintf(satellite,"J%03d",prn);
+        else continue;
+
+        azel[2*nsat  ]=ssat[sat].azel[0];
+        azel[2*nsat+1]=ssat[sat].azel[1];
+        sats[nsat++]=sat+1;
+        p+=sprintf(p,"pvt.%s.%s.resp %8.4f %ld\r\n",station,satellite,ssat[sat].resp[0],time.time);
+        p+=sprintf(p,"pvt.%s.%s.azi %6.2f %ld\r\n",station,satellite,ssat[sat].azel[0]*R2D,time.time);
+        p+=sprintf(p,"pvt.%s.%s.ele %5.2f %ld\r\n",station,satellite,ssat[sat].azel[1]*R2D,time.time);
+    }
+    dops(nsat,azel,0.0,dop); /*GDOP,PDOP,HDOP,VDOP */
+    p+=sprintf(p,"pvt.%s.gdop %6.2f %ld\r\n",station,dop[0],time.time);
+    p+=sprintf(p,"pvt.%s.pdop %6.2f %ld\r\n",station,dop[1],time.time);
+    p+=sprintf(p,"pvt.%s.hdop %6.2f %ld\r\n",station,dop[2],time.time);
+    p+=sprintf(p,"pvt.%s.vdop %6.2f %ld\r\n",station,dop[3],time.time);
+    p+=sprintf(p,"pvt.%s.nsat %d %ld\r\n",station,nsat,time.time);
+    
     return p-(char *)buff;
 }
 /* output processing options ---------------------------------------------------
@@ -1652,6 +1700,39 @@ extern int outsolexs(uint8_t *buff, const sol_t *sol, const ssat_t *ssat,
     if (opt->posf==SOLF_NMEA) {
         p+=outnmea_gsa(p,sol,ssat);
         p+=outnmea_gsv(p,sol,ssat);
+    }
+    return p-buff;
+}
+/* output solution extended ----------------------------------------------------
+* output solution exteneded infomation
+* args   : uint8_t *buff    IO  output buffer
+*          sol_t  *sol      I   solution
+*          ssat_t *ssat     I   satellite status
+*          solopt_t *opt    I   solution options
+* return : number of output bytes
+* notes  : only support nmea
+*-----------------------------------------------------------------------------*/
+extern int outsolgrpht(uint8_t *buff, const rtksvr_t *svr, const int i)
+{
+    gtime_t ts={0};
+    uint8_t *p=buff;
+    const sol_t *sol = &svr->rtk.sol;
+    const ssat_t *ssat = svr->rtk.ssat;
+    const solopt_t *opt =svr->solopt+i;
+    size_t index = strcspn(svr->stream[0].path, "/");
+    const char *station = svr->stream[0].path + index + 1;
+    
+    trace(3,"outsolgrpht:\n");
+    
+    /* suppress output if std is over opt->maxsolstd */
+    if (opt->maxsolstd>0.0&&sol_std(sol)>opt->maxsolstd) {
+        return 0;
+    }
+    if (opt->nmeaintv[1]<0.0) return 0;
+    if (!screent(sol->time,ts,ts,opt->nmeaintv[1])) return 0;
+
+    if (opt->posf==SOLF_GPHT) {
+        p+=outgraphite(p,sol,ssat,opt,station); 
     }
     return p-buff;
 }
