@@ -93,6 +93,9 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+/* Define POSIX_SOURCE for musl compatibility */
+#ifndef _POSIX_SOURCE
+#define _POSIX_SOURCE
 #endif
 
 /* constants -----------------------------------------------------------------*/
