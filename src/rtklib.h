@@ -1636,6 +1636,8 @@ EXPORT int outnmea_gsa(uint8_t *buff, const sol_t *sol,
                        const ssat_t *ssat);
 EXPORT int outnmea_gsv(uint8_t *buff, const sol_t *sol,
                        const ssat_t *ssat);
+EXPORT int outsolgrpht(uint8_t *buff, const rtksvr_t *svr, const int i);
+
 
 /* google earth kml converter ------------------------------------------------*/
 EXPORT int convkml(const char *infile, const char *outfile, gtime_t ts,

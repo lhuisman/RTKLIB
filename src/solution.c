@@ -1396,11 +1396,11 @@ extern int outnmea_gsv(uint8_t *buff, const sol_t *sol, const ssat_t *ssat)
 }
 /* output solution as graphite metric ---------------------------------*/
 static int outgraphite(uint8_t *buff,const sol_t *sol,const ssat_t *ssat,
-                   const solopt_t *opt, const char* station)
+                   const solopt_t *opt, const char* station, const double* refpos)
 {
     gtime_t time;
-    double azel[MAXSAT*2],dop[4], pos[3];
-    int sat, sys, nsat, prn, sats[MAXSAT];
+    double azel[MAXSAT*2],dop[4], pos[3], dxyz[3],enu[3],P[9],Q[9];
+    int sat, sys, nsat, prn, sats[MAXSAT], i;
     char *p=(char *)buff;
     char satellite[5];
     
@@ -1411,9 +1411,36 @@ static int outgraphite(uint8_t *buff,const sol_t *sol,const ssat_t *ssat,
     }
     time=sol->time;
     ecef2pos(sol->rr,pos);
+  
+    /* Compute position offsets */
+    for (i=0;i<3;i++) dxyz[i]=sol->rr[i]-refpos[i];
+    ecef2enu(pos,dxyz,enu);
+    /* Get formal precision */
+    soltocov(sol,P);
+    covenu(pos,P,Q);
+
+
     p+=sprintf(p,"pvt.%s.latitude %14.9f %ld\r\n",station,pos[0]*R2D,time.time);
     p+=sprintf(p,"pvt.%s.longitude %14.9f %ld\r\n",station,pos[1]*R2D,time.time);
     p+=sprintf(p,"pvt.%s.height %13.4f %ld\r\n",station,pos[2],time.time);
+    p+=sprintf(p,"pvt.%s.clk %13.9f %ld\r\n",station,sol->dtr[0]*CLIGHT,time.time);
+
+    /* Only output ENU if refpos available*/
+    if (norm(refpos,3)>1) {
+        p+=sprintf(p,"pvt.%s.north %13.4f %ld\r\n",station,enu[1],time.time);
+        p+=sprintf(p,"pvt.%s.east %13.4f %ld\r\n",station,enu[0],time.time);
+        p+=sprintf(p,"pvt.%s.up %13.4f %ld\r\n",station,enu[2],time.time);
+        p+=sprintf(p,"pvt.%s.stdnorth %13.4f %ld\r\n",station,SQRT(Q[4]),time.time);
+        p+=sprintf(p,"pvt.%s.stdeast %13.4f %ld\r\n",station,SQRT(Q[0]),time.time);
+        p+=sprintf(p,"pvt.%s.stdup %13.4f %ld\r\n",station,SQRT(Q[8]),time.time);
+        p+=sprintf(p,"pvt.%s.up %13.4f %ld\r\n",station,enu[2],time.time);
+        p+=sprintf(p,"pvt.%s.1D %13.4f %ld\r\n",station,SQRT(SQR(enu[2])),time.time);
+        p+=sprintf(p,"pvt.%s.2D %13.4f %ld\r\n",station,SQRT(SQR(enu[0])+SQR(enu[1])),time.time);
+        p+=sprintf(p,"pvt.%s.3D %13.4f %ld\r\n",station,SQRT(SQR(enu[0])+SQR(enu[1])+SQR(enu[2])),time.time);
+       
+    }
+
+
     p+=sprintf(p,"pvt.%s.status %d %ld\r\n",station,sol->stat,time.time);
     for (sat=nsat=0;sat<MAXSAT;sat++) {
         if (!ssat[sat].vs) continue;
@@ -1721,18 +1748,23 @@ extern int outsolgrpht(uint8_t *buff, const rtksvr_t *svr, const int i)
     const solopt_t *opt =svr->solopt+i;
     size_t index = strcspn(svr->stream[0].path, "/");
     const char *station = svr->stream[0].path + index + 1;
-    
+    double refpos[3]={0};
+    int j;
     trace(3,"outsolgrpht:\n");
     
+    /* Use rover RTCM position as known position */
+    for (j=0;j<3;j++) refpos[j]=svr->rtcm[0].sta.pos[j];
+
     /* suppress output if std is over opt->maxsolstd */
     if (opt->maxsolstd>0.0&&sol_std(sol)>opt->maxsolstd) {
         return 0;
     }
+    /* Using  NMEA inteval as output interval */
     if (opt->nmeaintv[1]<0.0) return 0;
     if (!screent(sol->time,ts,ts,opt->nmeaintv[1])) return 0;
 
     if (opt->posf==SOLF_GPHT) {
-        p+=outgraphite(p,sol,ssat,opt,station); 
+        p+=outgraphite(p,sol,ssat,opt,station,refpos); 
     }
     return p-buff;
 }
