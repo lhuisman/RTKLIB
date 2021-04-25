@@ -1434,9 +1434,9 @@ static int outgraphite(uint8_t *buff,const sol_t *sol,const ssat_t *ssat,
         p+=sprintf(p,"pvt.%s.stdeast %13.4f %ld\r\n",station,SQRT(Q[0]),time.time);
         p+=sprintf(p,"pvt.%s.stdup %13.4f %ld\r\n",station,SQRT(Q[8]),time.time);
         p+=sprintf(p,"pvt.%s.up %13.4f %ld\r\n",station,enu[2],time.time);
-        p+=sprintf(p,"pvt.%s.1D %13.4f %ld\r\n",station,SQRT(SQR(enu[2])),time.time);
-        p+=sprintf(p,"pvt.%s.2D %13.4f %ld\r\n",station,SQRT(SQR(enu[0])+SQR(enu[1])),time.time);
-        p+=sprintf(p,"pvt.%s.3D %13.4f %ld\r\n",station,SQRT(SQR(enu[0])+SQR(enu[1])+SQR(enu[2])),time.time);
+        p+=sprintf(p,"pvt.%s.1D %13.4f %ld\r\n",station,fabs(enu[2]),time.time);
+        p+=sprintf(p,"pvt.%s.2D %13.4f %ld\r\n",station,SQRT(SQR(fabs(enu[0]))+SQR(fabs(enu[1]))),time.time);
+        p+=sprintf(p,"pvt.%s.3D %13.4f %ld\r\n",station,SQRT(SQR(fabs(enu[0]))+SQR(fabs(enu[1]))+SQR(fabs(enu[2]))),time.time);
        
     }
 
